@@ -1,0 +1,149 @@
+import tkinter as tk
+import serial
+import threading
+
+
+def main():
+    ventana = tk.Tk()
+    ventana.title("Control de Relés y Lectura de Voltaje")
+    ventana.geometry("1000x300")
+
+    # Configuración de la comunicación serial
+    arduino = serial.Serial('COM6', 9600, timeout=0.1)  # Reemplaza 'COM6' con el puerto correcto de tu Arduino
+    arduino.flushInput()
+
+    # Variables para controlar el estado de los relés
+    relayState1 = False
+    relayState2 = False
+
+    # Variable para controlar si se está cargando el voltaje o no
+    cargando_voltaje = False
+
+    # Variable para almacenar el estado de la batería 1 y 2
+    estado_bateria1_text = tk.StringVar()
+    estado_bateria2_text = tk.StringVar()
+
+    # Funciones para controlar los relés
+    def toggle_relay1():
+        nonlocal relayState1
+        relayState1 = not relayState1
+        if relayState1:
+            casilla_on1.configure(bg="red")
+            casilla_off1.configure(bg="white")
+            arduino.write(b'1')
+        else:
+            casilla_on1.configure(bg="white")
+            casilla_off1.configure(bg="red")
+            arduino.write(b'1')
+
+    def toggle_relay2():
+        nonlocal relayState2
+        relayState2 = not relayState2
+        if relayState2:
+            casilla_on2.configure(bg="red")
+            casilla_off2.configure(bg="white")
+            arduino.write(b'2')
+        else:
+            casilla_on2.configure(bg="white")
+            casilla_off2.configure(bg="red")
+            arduino.write(b'2')
+
+    # Configuración de los botones y las casillas de control de relés
+    frame_entrada1 = tk.Frame(ventana)
+    entrada1 = tk.Button(frame_entrada1, text="INPUT 1", font=("Arial", 14), width=10, height=2, command=toggle_relay1)
+    casilla_on1 = tk.Button(frame_entrada1, justify="center", text="ON", bg="white", width=5, height=2)
+    casilla_off1 = tk.Button(frame_entrada1, justify="center", text="OFF", bg="red", width=5, height=2)
+
+    frame_entrada2 = tk.Frame(ventana)
+    entrada2 = tk.Button(frame_entrada2, text="INPUT 2", font=("Arial", 14), width=10, height=2, command=toggle_relay2)
+    casilla_on2 = tk.Button(frame_entrada2, justify="center", text="ON", bg="white", width=5, height=2)
+    casilla_off2 = tk.Button(frame_entrada2, justify="center", text="OFF", bg="red", width=5, height=2)
+
+    # Ubicación de los botones y las casillas de control de relés en la ventana
+    frame_entrada1.pack(side=tk.LEFT, padx=10, pady=10)
+    entrada1.pack(side=tk.TOP)
+    casilla_on1.pack(side=tk.LEFT, padx=5, pady=10)
+    casilla_off1.pack(side=tk.LEFT, padx=5, pady=10)
+
+    frame_entrada2.pack(side=tk.LEFT, padx=10, pady=10)
+    entrada2.pack(side=tk.TOP)
+    casilla_on2.pack(side=tk.LEFT, padx=5, pady=10)
+    casilla_off2.pack(side=tk.LEFT, padx=5, pady=10)
+
+    # Funciones para la lectura de voltaje
+    def leer_voltaje():
+        nonlocal cargando_voltaje
+        if not cargando_voltaje:
+            cargando_voltaje = True
+            voltaje_maximo = float(voltaje_entry.get())  # Obtener el voltaje máximo de carga ingresado por el usuario
+            estado_frame = tk.Frame(ventana)
+            estado_frame.pack(side=tk.TOP, padx=10, pady=10)
+
+            estado_label1 = tk.Label(estado_frame, text="ESTADO DE BATERIA 1")
+            estado_label1.pack()
+            estado_bateria1 = tk.Label(estado_frame, textvariable=estado_bateria1_text)
+            estado_bateria1.pack()
+
+            estado_label2 = tk.Label(estado_frame, text="ESTADO DE BATERIA 2")
+            estado_label2.pack()
+            estado_bateria2 = tk.Label(estado_frame, textvariable=estado_bateria2_text)
+            estado_bateria2.pack()
+
+            def lectura_voltaje_asincrona():
+                while cargando_voltaje:
+                    arduino.write(b'r')
+                    voltaje1 = float(arduino.readline().decode().strip())
+
+                    arduino.write(b's')
+                    voltaje2 = float(arduino.readline().decode().strip())
+
+                    if relayState1:
+                        estado_bateria1_text.set("Cargando...")
+                    else:
+                        if voltaje1 >= voltaje_maximo:
+                            estado_bateria1_text.set("Carga completa")
+                        else:
+                            estado_bateria1_text.set("Bateria 1: {:.2f} V".format(voltaje1))
+
+                    if relayState2:
+                        estado_bateria2_text.set("Cargando...")
+                    else:
+                        if voltaje2 >= voltaje_maximo:
+                            estado_bateria2_text.set("Carga completa")
+                        else:
+                            estado_bateria2_text.set("Bateria 2: {:.2f} V".format(voltaje2))
+
+                    ventana.after(100, lectura_voltaje_asincrona)
+
+            threading.Thread(target=lectura_voltaje_asincrona, daemon=True).start()
+
+    # Configuración del botón de lectura de voltaje
+    voltaje_frame = tk.Frame(ventana)
+    voltaje_frame.pack(pady=10)
+
+    voltaje_label = tk.Label(voltaje_frame, text="Voltaje máximo de carga:")
+    voltaje_label.pack(side=tk.LEFT)
+
+    voltaje_entry = tk.Entry(voltaje_frame, width=10)
+    voltaje_entry.pack(side=tk.LEFT)
+
+    voltaje_unit_label = tk.Label(voltaje_frame, text="V")
+    voltaje_unit_label.pack(side=tk.LEFT)
+
+    voltaje_btn = tk.Button(ventana, text="Leer Voltajes", font=("Arial", 14), width=15, height=2, command=leer_voltaje)
+    voltaje_btn.pack(pady=10)
+
+    # Función para detener la carga de voltaje y volver a mostrar los valores anteriores
+    def detener_carga_voltaje():
+        nonlocal cargando_voltaje
+        cargando_voltaje = False
+
+    # Configuración del botón para detener la carga de voltaje
+    detener_btn = tk.Button(ventana, text="Detener Lecturas", font=("Arial", 14), width=15, height=2, command=detener_carga_voltaje)
+    detener_btn.pack(pady=10)
+
+    ventana.mainloop()
+
+
+if __name__ == "__main__":
+    main()
