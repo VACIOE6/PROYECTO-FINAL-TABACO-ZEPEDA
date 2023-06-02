@@ -1,0 +1,65 @@
+const int relayPin1 = 2;     // Pin de control del relé 1
+const int relayPin2 = 3;     // Pin de control del relé 2
+bool relayState1 = false;    // Estado actual del relé 1
+bool relayState2 = false;    // Estado actual del relé 2
+
+const int sensorPin1 = A0;   // Pin analógico al que está conectado el sensor de voltaje 1
+const int sensorPin2 = A1;   // Pin analógico al que está conectado el sensor de voltaje 2
+
+void setup() {
+  pinMode(relayPin1, OUTPUT); // Configura el pin del relé 1 como salida
+  pinMode(relayPin2, OUTPUT); // Configura el pin del relé 2 como salida
+  Serial.begin(9600);         // Inicia la comunicación serial a 9600 bps
+}
+
+void loop() {
+  // Control de relés
+  if (Serial.available() > 0) {
+    char data = Serial.read(); // Lee los datos recibidos por el puerto serial
+
+    if (data == '1') {
+      toggleRelay1();
+    } else if (data == '2') {
+      toggleRelay2();
+    }
+  }
+
+  // Lectura de voltajes
+  float voltage1 = readVoltage(sensorPin1);
+  float voltage2 = readVoltage(sensorPin2);
+
+  // Envío de voltajes por el monitor serial
+  Serial.print("");
+  Serial.println(voltage1);
+  
+  Serial.print("");
+  Serial.println(voltage2);
+
+  delay(1000); // Espera 1 segundo antes de volver a leer los voltajes
+}
+
+void toggleRelay1() {
+  relayState1 = !relayState1; // Invierte el estado del relé 1
+
+  if (relayState1) {
+    digitalWrite(relayPin1, HIGH); // Activa el relé 1
+  } else {
+    digitalWrite(relayPin1, LOW); // Desactiva el relé 1
+  }
+}
+
+void toggleRelay2() {
+  relayState2 = !relayState2; // Invierte el estado del relé 2
+
+  if (relayState2) {
+    digitalWrite(relayPin2, HIGH); // Activa el relé 2
+  } else {
+    digitalWrite(relayPin2, LOW); // Desactiva el relé 2
+  }
+}
+
+float readVoltage(int sensorPin) {
+  int sensorValue = analogRead(sensorPin);          // Lee el valor del sensor de voltaje
+  float voltage = sensorValue * (5.0 / 1023.0);     // Convierte el valor leído en voltaje (5V es la referencia del Arduino)
+  return voltage;
+}
